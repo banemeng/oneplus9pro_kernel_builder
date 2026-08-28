@@ -38,16 +38,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-kernel-ccache-
 
-      - name: Setup Toolchain (AOSP Clang r416183b & GCC)
-        run: |
-          echo "=== Downloading AOSP Clang r416183b ==="
-          mkdir -p toolchain/clang
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.0.0_r1/clang-r416183b.tar.gz" | tar -xz -C toolchain/clang
+      - name: Setup Toolchain Cache (Clang & GCC)
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain
+          key: ${{ runner.os }}-toolchain-r416183b-v1
 
-          echo "=== Downloading GCC 64 & 32 ==="
-          mkdir -p toolchain/gcc64 toolchain/gcc32
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc64
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc32
+      - name: Setup Toolchain (Parallel Download & Extract)
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          echo "=== Downloading Clang & GCC in Parallel ==="
+          mkdir -p toolchain/clang toolchain/gcc64 toolchain/gcc32
+          
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.0.0_r1/clang-r416183b.tar.gz" | tar -xz -C toolchain/clang &
+          PID1=$!
+          
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc64 &
+          PID2=$!
+          
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc32 &
+          PID3=$!
+
+          wait $PID1 $PID2 $PID3
+          echo "=== Toolchain downloaded and extracted successfully ==="
 
       - name: Clone Kernel Source (SM8350 5.4)
         run: |
