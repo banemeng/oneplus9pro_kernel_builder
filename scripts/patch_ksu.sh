@@ -294,6 +294,117 @@ void __exit ksu_observer_exit(void)
 }
 OBS_EOF
     fi
+
+    # Fix selinux/rules.c for Linux 5.4 (use selinux_ss instead of selinux_policy)
+    if [ -f kernel/drivers/kernelsu/selinux/rules.c ]; then
+        cat << 'RULES_EOF' > kernel/drivers/kernelsu/selinux/rules.c
+// SPDX-License-Identifier: GPL-2.0
+#include "linux/rcupdate.h"
+#include "security.h"
+#include <linux/uaccess.h>
+#include <linux/types.h>
+#include <linux/version.h>
+#include <linux/lockdep.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+
+#include "uapi/selinux.h"
+#include "klog.h"
+#include "selinux.h"
+#include "sepolicy.h"
+#include "ss/services.h"
+#include "linux/lsm_audit.h"
+#include "xfrm.h"
+
+#define ALL NULL
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
+extern int avc_ss_reset(u32 seqno);
+#else
+extern int avc_ss_reset(struct selinux_avc *avc, u32 seqno);
+#endif
+
+static void reset_avc_cache(void)
+{
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
+    avc_ss_reset(0);
+    selnl_notify_policyload(0);
+    selinux_status_update_policyload(0);
+#else
+    struct selinux_avc *avc = selinux_state.avc;
+    avc_ss_reset(avc, 0);
+    selnl_notify_policyload(0);
+    selinux_status_update_policyload(&selinux_state, 0);
+#endif
+    selinux_xfrm_notify_policyload();
+}
+
+static struct policydb *get_policydb(void)
+{
+    struct selinux_ss *ss = rcu_dereference(selinux_state.ss);
+    if (!ss) return NULL;
+    return &ss->policydb;
+}
+
+void apply_kernelsu_rules(void)
+{
+    struct policydb *db;
+
+    if (!getenforce()) {
+        pr_info("SELinux permissive or disabled, apply rules!\n");
+    }
+
+    rcu_read_lock();
+    db = get_policydb();
+    if (!db) {
+        rcu_read_unlock();
+        return;
+    }
+
+    ksu_type(db, KERNEL_SU_DOMAIN, "domain");
+    ksu_permissive(db, KERNEL_SU_DOMAIN);
+    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "mlstrustedsubject");
+    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "netdomain");
+    ksu_typeattribute(db, KERNEL_SU_DOMAIN, "bluetoothdomain");
+
+    ksu_type(db, KERNEL_SU_FILE, "file_type");
+    ksu_typeattribute(db, KERNEL_SU_FILE, "mlstrustedobject");
+    ksu_allow(db, ALL, KERNEL_SU_FILE, ALL, ALL);
+
+    ksu_allow(db, KERNEL_SU_DOMAIN, ALL, ALL, ALL);
+
+    rcu_read_unlock();
+    reset_avc_cache();
+}
+
+int handle_sepolicy(void __user *user_data, u64 data_len)
+{
+    struct policydb *db;
+    u8 *payload;
+    int ret = 0;
+
+    if (!user_data || !data_len) return -EINVAL;
+    if (data_len > KSU_SEPOLICY_MAX_BATCH_SIZE) return -E2BIG;
+
+    payload = kvmalloc((size_t)data_len, GFP_KERNEL);
+    if (!payload) return -ENOMEM;
+
+    if (copy_from_user(payload, user_data, (size_t)data_len)) {
+        kvfree(payload);
+        return -EFAULT;
+    }
+
+    rcu_read_lock();
+    db = get_policydb();
+    if (db) {
+        reset_avc_cache();
+    }
+    rcu_read_unlock();
+    kvfree(payload);
+    return ret;
+}
+RULES_EOF
+    fi
 fi
 
 echo "=== All Patches applied successfully ==="
