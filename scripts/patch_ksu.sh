@@ -33,7 +33,21 @@ if [ ! -f kernel/include/linux/pgtable.h ]; then
 HDR_EOF
 fi
 
-# 7. Add kernel 5.4 compatibility for nofault memory copy APIs (Linux 5.4 equivalents)
+# 7. Add kernel 5.4 compatibility for task_work TWA_ constants
+cat << 'TW_EOF' >> kernel/include/linux/task_work.h
+
+#ifndef TWA_RESUME
+#define TWA_RESUME true
+#endif
+#ifndef TWA_NONE
+#define TWA_NONE false
+#endif
+#ifndef TWA_SIGNAL
+#define TWA_SIGNAL true
+#endif
+TW_EOF
+
+# 8. Add kernel 5.4 compatibility for nofault memory copy APIs
 cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 
 #ifndef copy_to_kernel_nofault
@@ -50,13 +64,15 @@ cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 #endif
 UACC_EOF
 
-# 8. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
+# 9. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
 if [ -d kernel/drivers/kernelsu ]; then
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_to_kernel_nofault/probe_kernel_write/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_from_kernel_nofault/probe_kernel_read/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_to_user_nofault/probe_user_write/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_from_user_nofault/probe_user_read/g' {} + 2>/dev/null || true
+    find kernel/drivers/kernelsu/ -type f -exec sed -i 's/TWA_RESUME/true/g' {} + 2>/dev/null || true
+    find kernel/drivers/kernelsu/ -type f -exec sed -i 's/TWA_NONE/false/g' {} + 2>/dev/null || true
 
     # Fix seccomp_cache.c for Linux 5.4
     if [ -f kernel/drivers/kernelsu/infra/seccomp_cache.c ]; then
