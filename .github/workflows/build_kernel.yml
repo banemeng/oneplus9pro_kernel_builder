@@ -56,6 +56,9 @@ jobs:
           # 4. Remove obsolete PicoLCD from drivers/hid/Makefile to prevent build failure
           sed -i '/hid-picolcd/d' drivers/hid/Makefile || true
 
+          # 5. Fix shima interconnect missing icc_regmap_config
+          sed -i '/#include "qnoc-qos.h"/a static const struct regmap_config icc_regmap_config = { .reg_bits = 32, .reg_stride = 4, .val_bits = 32 };' drivers/interconnect/qcom/shima.c || true
+
       - name: Integrate SukiSU-Ultra
         run: |
           cd kernel
