@@ -53,6 +53,9 @@ jobs:
           # 3. Fix binder_trace pointer arithmetic
           sed -i 's/__entry->offset = start - alloc->buffer;/__entry->offset = start - (unsigned long)alloc->buffer;/g' drivers/android/binder_trace.h || true
 
+          # 4. Remove obsolete PicoLCD from drivers/hid/Makefile to prevent build failure
+          sed -i '/hid-picolcd/d' drivers/hid/Makefile || true
+
       - name: Integrate SukiSU-Ultra
         run: |
           cd kernel
@@ -78,8 +81,6 @@ jobs:
       - name: Prepare Config
         run: |
           cp config/phone_extracted.config kernel/arch/arm64/configs/phone_extracted_defconfig
-          # Disable obsolete PicoLCD driver which lacks fb_deferred_io in mobile display subsystem
-          sed -i 's/CONFIG_HID_PICOLCD=y/# CONFIG_HID_PICOLCD is not set/g' kernel/arch/arm64/configs/phone_extracted_defconfig
 
       - name: Compile Kernel
         run: |
