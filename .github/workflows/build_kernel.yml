@@ -59,11 +59,18 @@ jobs:
           # 5. Fix shima interconnect missing icc_regmap_config
           sed -i '/#include "qnoc-qos.h"/a static const struct regmap_config icc_regmap_config = { .reg_bits = 32, .reg_stride = 4, .val_bits = 32 };' drivers/interconnect/qcom/shima.c || true
 
+          # 6. Add kernel 5.4 compatibility for pgtable.h
+          if [ ! -f include/linux/pgtable.h ]; then
+            echo -e "#ifndef _LINUX_PGTABLE_H\n#define _LINUX_PGTABLE_H\n#include <asm/pgtable.h>\n#endif" > include/linux/pgtable.h
+          fi
+
       - name: Integrate SukiSU-Ultra
         run: |
           cd kernel
           echo "=== Setting up SukiSU-Ultra ==="
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+          # Fix pgtable include in SukiSU
+          find drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
 
       - name: Integrate SUSFS Patches
         run: |
