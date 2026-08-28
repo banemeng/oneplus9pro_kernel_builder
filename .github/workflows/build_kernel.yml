@@ -64,13 +64,18 @@ jobs:
             echo -e "#ifndef _LINUX_PGTABLE_H\n#define _LINUX_PGTABLE_H\n#include <asm/pgtable.h>\n#endif" > include/linux/pgtable.h
           fi
 
+          # 7. Add kernel 5.4 compatibility for copy_to_kernel_nofault
+          echo -e "\n#ifndef copy_to_kernel_nofault\n#define copy_to_kernel_nofault probe_kernel_write\n#endif\n#ifndef copy_from_kernel_nofault\n#define copy_from_kernel_nofault probe_kernel_read\n#endif\n" >> include/linux/uaccess.h
+
       - name: Integrate SukiSU-Ultra
         run: |
           cd kernel
           echo "=== Setting up SukiSU-Ultra ==="
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
-          # Fix pgtable include in SukiSU
+          # Fix pgtable include and copy_to_kernel_nofault in SukiSU
           find drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
+          find drivers/kernelsu/ -type f -exec sed -i 's/copy_to_kernel_nofault/probe_kernel_write/g' {} + 2>/dev/null || true
+          find drivers/kernelsu/ -type f -exec sed -i 's/copy_from_kernel_nofault/probe_kernel_read/g' {} + 2>/dev/null || true
 
       - name: Integrate SUSFS Patches
         run: |
