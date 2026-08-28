@@ -38,111 +38,11 @@ jobs:
         run: |
           git clone --depth=1 -b 15 https://github.com/dev-sm8350/kernel_oneplus_sm8350 kernel
 
-      - name: Fix Compatibility Issues
-        run: |
-          cd kernel
-          # 1. Fix missing fdtoverlay.c in scripts/dtc
-          curl -s https://raw.githubusercontent.com/dgibson/dtc/main/fdtoverlay.c -o scripts/dtc/fdtoverlay.c || true
-          if [ ! -s scripts/dtc/fdtoverlay.c ]; then
-            sed -i 's/hostprogs-\$(CONFIG_DTC) := dtc fdtoverlay/hostprogs-\$(CONFIG_DTC) := dtc/g' scripts/dtc/Makefile || true
-          fi
-
-          # 2. Fix F2FS ZSTD pointer mismatch
-          sed -i 's/zstd_cstream_workspace_bound(params.cParams)/zstd_cstream_workspace_bound(\&params.cParams)/g' fs/f2fs/compress.c || true
-
-          # 3. Fix binder_trace pointer arithmetic
-          sed -i 's/__entry->offset = start - alloc->buffer;/__entry->offset = start - (unsigned long)alloc->buffer;/g' drivers/android/binder_trace.h || true
-
-          # 4. Remove obsolete PicoLCD from drivers/hid/Makefile to prevent build failure
-          sed -i '/hid-picolcd/d' drivers/hid/Makefile || true
-
-          # 5. Fix shima interconnect missing icc_regmap_config
-          sed -i '/#include "qnoc-qos.h"/a static const struct regmap_config icc_regmap_config = { .reg_bits = 32, .reg_stride = 4, .val_bits = 32 };' drivers/interconnect/qcom/shima.c || true
-
-          # 6. Add kernel 5.4 compatibility for pgtable.h
-          if [ ! -f include/linux/pgtable.h ]; then
-            echo -e "#ifndef _LINUX_PGTABLE_H\n#define _LINUX_PGTABLE_H\n#include <asm/pgtable.h>\n#endif" > include/linux/pgtable.h
-          fi
-
-          # 7. Add kernel 5.4 compatibility for copy_to_kernel_nofault
-          echo -e "\n#ifndef copy_to_kernel_nofault\n#define copy_to_kernel_nofault probe_kernel_write\n#endif\n#ifndef copy_from_kernel_nofault\n#define copy_from_kernel_nofault probe_kernel_read\n#endif\n" >> include/linux/uaccess.h
-
       - name: Integrate SukiSU-Ultra
         run: |
           cd kernel
           echo "=== Setting up SukiSU-Ultra ==="
           curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
-          
-          # Fix pgtable include and copy_to_kernel_nofault in SukiSU
-          find drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
-          find drivers/kernelsu/ -type f -exec sed -i 's/copy_to_kernel_nofault/probe_kernel_write/g' {} + 2>/dev/null || true
-          find drivers/kernelsu/ -type f -exec sed -i 's/copy_from_kernel_nofault/probe_kernel_read/g' {} + 2>/dev/null || true
-
-          # Fix seccomp_cache for kernels < 5.11 (Linux 5.4 compatibility)
-          cat << 'SECC_EOF' > drivers/kernelsu/infra/seccomp_cache.c
-#include <linux/version.h>
-#include <linux/fs.h>
-#include <linux/nsproxy.h>
-#include <linux/sched/task.h>
-#include <linux/uaccess.h>
-#include <linux/filter.h>
-#include <linux/seccomp.h>
-#include "klog.h"
-#include "infra/seccomp_cache.h"
-
-#ifdef SECCOMP_ARCH_NATIVE_NR
-
-struct action_cache {
-    DECLARE_BITMAP(allow_native, SECCOMP_ARCH_NATIVE_NR);
-#ifdef SECCOMP_ARCH_COMPAT
-    DECLARE_BITMAP(allow_compat, SECCOMP_ARCH_COMPAT_NR);
-#endif
-};
-
-struct seccomp_filter {
-    refcount_t refs;
-    refcount_t users;
-    bool log;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
-    bool wait_killable_recv;
-#endif
-    struct action_cache cache;
-    struct seccomp_filter *prev;
-    struct bpf_prog *prog;
-    struct notification *notif;
-    struct mutex notify_lock;
-    wait_queue_head_t wqh;
-};
-
-void ksu_seccomp_clear_cache(struct seccomp_filter *filter, int nr)
-{
-    if (!filter) return;
-    if (nr >= 0 && nr < SECCOMP_ARCH_NATIVE_NR)
-        clear_bit(nr, filter->cache.allow_native);
-#ifdef SECCOMP_ARCH_COMPAT
-    if (nr >= 0 && nr < SECCOMP_ARCH_COMPAT_NR)
-        clear_bit(nr, filter->cache.allow_compat);
-#endif
-}
-
-void ksu_seccomp_allow_cache(struct seccomp_filter *filter, int nr)
-{
-    if (!filter) return;
-    if (nr >= 0 && nr < SECCOMP_ARCH_NATIVE_NR)
-        set_bit(nr, filter->cache.allow_native);
-#ifdef SECCOMP_ARCH_COMPAT
-    if (nr >= 0 && nr < SECCOMP_ARCH_COMPAT_NR)
-        set_bit(nr, filter->cache.allow_compat);
-#endif
-}
-
-#else
-
-void ksu_seccomp_clear_cache(struct seccomp_filter *filter, int nr) {}
-void ksu_seccomp_allow_cache(struct seccomp_filter *filter, int nr) {}
-
-#endif
-SECC_EOF
 
       - name: Integrate SUSFS Patches
         run: |
@@ -159,6 +59,10 @@ SECC_EOF
           if [ -f susfs_repo/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]; then
             patch -p1 -d drivers/kernelsu < susfs_repo/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "SUSFS KSU patch applied or skipped"
           fi
+
+      - name: Apply Compatibility Patches
+        run: |
+          bash ./scripts/patch_ksu.sh
 
       - name: Prepare Config
         run: |
