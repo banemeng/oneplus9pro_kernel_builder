@@ -406,6 +406,11 @@ int handle_sepolicy(void __user *user_data, u64 data_len)
 }
 RULES_EOF
     fi
+
+    # Fix selinux/sepolicy.c with Linux 5.4 tested implementation
+    if [ -f scripts/sepolicy_5.4.c ] && [ -f kernel/drivers/kernelsu/selinux/sepolicy.c ]; then
+        cp scripts/sepolicy_5.4.c kernel/drivers/kernelsu/selinux/sepolicy.c
+    fi
 fi
 
 echo "=== All Patches applied successfully ==="
