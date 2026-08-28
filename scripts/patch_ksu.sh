@@ -411,6 +411,20 @@ RULES_EOF
     if [ -f scripts/sepolicy_5.4.c ] && [ -f kernel/drivers/kernelsu/selinux/sepolicy.c ]; then
         cp scripts/sepolicy_5.4.c kernel/drivers/kernelsu/selinux/sepolicy.c
     fi
+
+    # Fix feature/selinux_hide.c for Linux 5.4
+    if [ -f kernel/drivers/kernelsu/feature/selinux_hide.c ]; then
+        cat << 'HIDE_EOF' > kernel/drivers/kernelsu/feature/selinux_hide.c
+#include "selinux_hide.h"
+#include <linux/types.h>
+
+void ksu_selinux_hide_init(void) {}
+void ksu_selinux_hide_exit(void) {}
+void ksu_selinux_hide_drop_backup_if_unused(void) {}
+void ksu_selinux_hide_handle_second_stage(void) {}
+void ksu_selinux_hide_handle_post_fs_data(void) {}
+HIDE_EOF
+    fi
 fi
 
 echo "=== All Patches applied successfully ==="
