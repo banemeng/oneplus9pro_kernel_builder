@@ -425,6 +425,76 @@ void ksu_selinux_hide_handle_second_stage(void) {}
 void ksu_selinux_hide_handle_post_fs_data(void) {}
 HIDE_EOF
     fi
+
+    # Fix feature/cpu_spoof.c for Linux 5.4
+    if [ -f kernel/drivers/kernelsu/feature/cpu_spoof.c ]; then
+        cat << 'CPU_EOF' > kernel/drivers/kernelsu/feature/cpu_spoof.c
+// SPDX-License-Identifier: GPL-2.0
+#include <linux/kernel.h>
+#include <linux/types.h>
+#include <linux/cpumask.h>
+#include <linux/percpu.h>
+#include <linux/jiffies.h>
+#include <linux/delay.h>
+#include <linux/clocksource.h>
+#include <linux/errno.h>
+#include <linux/version.h>
+
+#include "cpu_spoof.h"
+#include "infra/symbol_resolver.h"
+#include "klog.h"
+
+#if defined(CONFIG_ARM64) || defined(__aarch64__)
+#include <asm/cpu.h>
+#include <asm/cputype.h>
+#include <asm/cpufeature.h>
+
+int ksu_set_spoof_cpu(const struct ksu_set_spoof_cpu_cmd *cmd)
+{
+    if (!cmd)
+        return -EINVAL;
+
+    if (cmd->cpu_index >= num_possible_cpus()) {
+        pr_warn("ksu: set_spoof_cpu out-of-bounds cpu_index %u\n", cmd->cpu_index);
+        return -EINVAL;
+    }
+
+    /* 1. Resolve 'cpu_data' and overwrite target core MIDR */
+    {
+        unsigned long cpu_data_base = find_kernel_symbol_exact("cpu_data");
+        if (cpu_data_base) {
+            struct cpuinfo_arm64 *info = per_cpu_ptr((struct cpuinfo_arm64 *)cpu_data_base, cmd->cpu_index);
+            if (info) {
+                info->reg_midr = cmd->midr;
+            }
+        }
+    }
+
+    /* 2. Global modifications on CPU 0 */
+    if (cmd->cpu_index == 0) {
+        unsigned long *lpj = (unsigned long *)find_kernel_symbol_exact("loops_per_jiffy");
+        if (lpj) {
+            *lpj = ((unsigned long)cmd->bogomips * 500000) / (100 * HZ);
+        }
+
+        unsigned long *elf_hwcap_bitmap = (unsigned long *)find_kernel_symbol_exact("elf_hwcap");
+        if (elf_hwcap_bitmap) {
+            elf_hwcap_bitmap[0] = cmd->hwcap;
+            elf_hwcap_bitmap[1] = cmd->hwcap2;
+        }
+    }
+
+    pr_info("KernelSU Stealth: CPU %u identity spoofed (MIDR: 0x%08x)\n", cmd->cpu_index, cmd->midr);
+    return 0;
+}
+#else
+int ksu_set_spoof_cpu(const struct ksu_set_spoof_cpu_cmd *cmd)
+{
+    return 0;
+}
+#endif
+CPU_EOF
+    fi
 fi
 
 echo "=== All Patches applied successfully ==="
