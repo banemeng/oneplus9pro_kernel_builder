@@ -69,7 +69,13 @@ if [ -f kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c ]; then
     sed -i '1i #undef CONFIG_SLUB_DEBUG' kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c || true
 fi
 
-# 10. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
+# 10. Remove legacy staging ksu to avoid duplicate symbol collision with SukiSU-Ultra
+sed -i '/ksu\//d' kernel/drivers/staging/Makefile 2>/dev/null || true
+
+# 11. Fix task_mmu.c swapped split_huge_pmd arguments
+sed -i 's/split_huge_pmd(vma, addr, pmd);/split_huge_pmd(vma, pmd, addr);/g' kernel/fs/proc/task_mmu.c 2>/dev/null || true
+
+# 12. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
 if [ -d kernel/drivers/kernelsu ]; then
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_to_kernel_nofault/probe_kernel_write/g' {} + 2>/dev/null || true
