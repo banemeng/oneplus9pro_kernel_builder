@@ -38,17 +38,20 @@ jobs:
         run: |
           git clone --depth=1 -b 15 https://github.com/dev-sm8350/kernel_oneplus_sm8350 kernel
 
-      - name: Fix DTC Scripts & F2FS ZSTD
+      - name: Fix Compatibility Issues
         run: |
           cd kernel
-          # Fix missing fdtoverlay.c in scripts/dtc
+          # 1. Fix missing fdtoverlay.c in scripts/dtc
           curl -s https://raw.githubusercontent.com/dgibson/dtc/main/fdtoverlay.c -o scripts/dtc/fdtoverlay.c || true
           if [ ! -s scripts/dtc/fdtoverlay.c ]; then
             sed -i 's/hostprogs-\$(CONFIG_DTC) := dtc fdtoverlay/hostprogs-\$(CONFIG_DTC) := dtc/g' scripts/dtc/Makefile || true
           fi
 
-          # Fix F2FS ZSTD pointer mismatch
+          # 2. Fix F2FS ZSTD pointer mismatch
           sed -i 's/zstd_cstream_workspace_bound(params.cParams)/zstd_cstream_workspace_bound(\&params.cParams)/g' fs/f2fs/compress.c || true
+
+          # 3. Fix binder_trace pointer arithmetic
+          sed -i 's/__entry->offset = start - alloc->buffer;/__entry->offset = start - (unsigned long)alloc->buffer;/g' drivers/android/binder_trace.h || true
 
       - name: Integrate SukiSU-Ultra
         run: |
