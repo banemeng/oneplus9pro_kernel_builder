@@ -33,7 +33,7 @@ if [ ! -f kernel/include/linux/pgtable.h ]; then
 HDR_EOF
 fi
 
-# 7. Add kernel 5.4 compatibility for all nofault memory/string copy APIs
+# 7. Add kernel 5.4 compatibility for nofault memory copy APIs (Linux 5.4 equivalents)
 cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 
 #ifndef copy_to_kernel_nofault
@@ -48,9 +48,6 @@ cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 #ifndef copy_from_user_nofault
 #define copy_from_user_nofault probe_user_read
 #endif
-#ifndef strncpy_from_user_nofault
-#define strncpy_from_user_nofault(dst, src, count) strncpy_from_unsafe(dst, (const void *)(src), count)
-#endif
 UACC_EOF
 
 # 8. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
@@ -60,7 +57,6 @@ if [ -d kernel/drivers/kernelsu ]; then
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_from_kernel_nofault/probe_kernel_read/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_to_user_nofault/probe_user_write/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_from_user_nofault/probe_user_read/g' {} + 2>/dev/null || true
-    find kernel/drivers/kernelsu/ -type f -exec sed -i 's/strncpy_from_user_nofault(\([^,]*\),[[:space:]]*\([^,]*\),[[:space:]]*\([^)]*\))/strncpy_from_unsafe(\1, (const void *)(\2), \3)/g' {} + 2>/dev/null || true
 
     # Fix seccomp_cache.c for Linux 5.4
     if [ -f kernel/drivers/kernelsu/infra/seccomp_cache.c ]; then
