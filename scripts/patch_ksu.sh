@@ -64,7 +64,12 @@ cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 #endif
 UACC_EOF
 
-# 9. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
+# 9. Fix Qualcomm legacy stack_trace in cnss_prealloc.c
+if [ -f kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c ]; then
+    sed -i '/#include <linux\/stacktrace.h>/a struct stack_trace { unsigned int nr_entries, max_entries; unsigned long *entries; int skip; }; static inline void save_stack_trace(struct stack_trace *trace) { if (trace && trace->entries) { trace->nr_entries = stack_trace_save(trace->entries, trace->max_entries, trace->skip); } }' kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c || true
+fi
+
+# 10. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
 if [ -d kernel/drivers/kernelsu ]; then
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/<linux\/pgtable.h>/<asm\/pgtable.h>/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_to_kernel_nofault/probe_kernel_write/g' {} + 2>/dev/null || true
