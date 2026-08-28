@@ -78,6 +78,8 @@ jobs:
       - name: Prepare Config
         run: |
           cp config/phone_extracted.config kernel/arch/arm64/configs/phone_extracted_defconfig
+          # Disable obsolete PicoLCD driver which lacks fb_deferred_io in mobile display subsystem
+          sed -i 's/CONFIG_HID_PICOLCD=y/# CONFIG_HID_PICOLCD is not set/g' kernel/arch/arm64/configs/phone_extracted_defconfig
 
       - name: Compile Kernel
         run: |
@@ -109,6 +111,8 @@ jobs:
           # Copy DTB if present
           if [ -f kernel/out/arch/arm64/boot/dtb ]; then
             cp kernel/out/arch/arm64/boot/dtb AnyKernel3/dtb
+          elif [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
+            cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
           elif [ -f kernel/out/arch/arm64/boot/dts/vendor/qcom/lahaina.dtb ]; then
             cp kernel/out/arch/arm64/boot/dts/vendor/qcom/lahaina.dtb AnyKernel3/dtb
           fi
