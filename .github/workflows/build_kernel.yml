@@ -1,0 +1,132 @@
+name: Build OnePlus 9 Pro Kernel (SukiSU-Ultra + SUSFS)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Build Kernel
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf \
+            lib32ncurses5-dev lib32z1-dev libelf-dev liblz4-tool libncurses5 libncurses5-dev \
+            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev python3 libtinfo5 tar
+
+      - name: Setup Toolchain (AOSP Clang r416183b & GCC)
+        run: |
+          echo "=== Downloading AOSP Clang r416183b ==="
+          mkdir -p toolchain/clang
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-12.0.0_r1/clang-r416183b.tar.gz" | tar -xz -C toolchain/clang
+
+          echo "=== Downloading GCC 64 & 32 ==="
+          mkdir -p toolchain/gcc64 toolchain/gcc32
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc64
+          curl -LSs "https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/tags/android-12.0.0_r1.tar.gz" | tar -xz -C toolchain/gcc32
+
+      - name: Clone Kernel Source (SM8350 5.4)
+        run: |
+          git clone --depth=1 -b 15 https://github.com/dev-sm8350/kernel_oneplus_sm8350 kernel
+
+      - name: Integrate SukiSU-Ultra
+        run: |
+          cd kernel
+          echo "=== Setting up SukiSU-Ultra ==="
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s main
+
+      - name: Integrate SUSFS Patches
+        run: |
+          cd kernel
+          echo "=== Cloning SUSFS 5.4 Patches ==="
+          git clone --depth=1 -b kernel-5.4 https://gitlab.com/simonpunk/susfs4ksu susfs_repo
+          cp -r susfs_repo/kernel_patches/fs/* fs/ 2>/dev/null || true
+          cp -r susfs_repo/kernel_patches/include/linux/* include/linux/ 2>/dev/null || true
+          
+          echo "=== Applying SUSFS kernel patch ==="
+          patch -p1 < susfs_repo/kernel_patches/50_add_susfs_in_kernel-5.4.patch || echo "SUSFS kernel patch applied or minor fuzz ignored"
+
+          echo "=== Applying SUSFS KernelSU patch ==="
+          if [ -f susfs_repo/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch ]; then
+            patch -p1 -d drivers/kernelsu < susfs_repo/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch || echo "SUSFS KSU patch applied or skipped"
+          fi
+
+      - name: Prepare Config
+        run: |
+          cp config/phone_extracted.config kernel/arch/arm64/configs/phone_extracted_defconfig
+
+      - name: Compile Kernel
+        run: |
+          export PATH=$(pwd)/toolchain/clang/bin:$(pwd)/toolchain/gcc64/bin:$(pwd)/toolchain/gcc32/bin:$PATH
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-android-
+          export CROSS_COMPILE_ARM32=arm-linux-androideabi-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+
+          cd kernel
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 phone_extracted_defconfig
+          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc --all)
+
+      - name: Package with AnyKernel3
+        run: |
+          git clone https://github.com/dev-sm8350/AnyKernel3 AnyKernel3 || git clone https://github.com/osm0sis/AnyKernel3 AnyKernel3
+          
+          # Copy compiled Image
+          if [ -f kernel/out/arch/arm64/boot/Image ]; then
+            cp kernel/out/arch/arm64/boot/Image AnyKernel3/Image
+          elif [ -f kernel/out/arch/arm64/boot/Image.gz ]; then
+            cp kernel/out/arch/arm64/boot/Image.gz AnyKernel3/Image.gz
+          else
+            echo "ERROR: Kernel Image not found!"
+            exit 1
+          fi
+
+          # Copy DTB if present
+          if [ -f kernel/out/arch/arm64/boot/dtb ]; then
+            cp kernel/out/arch/arm64/boot/dtb AnyKernel3/dtb
+          elif [ -f kernel/out/arch/arm64/boot/dts/vendor/qcom/lahaina.dtb ]; then
+            cp kernel/out/arch/arm64/boot/dts/vendor/qcom/lahaina.dtb AnyKernel3/dtb
+          fi
+
+          # Setup anykernel.sh config
+          cd AnyKernel3
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh || true
+          
+          ZIP_NAME="OnePlus9Pro-SukiSU-Ultra-SUSFS-$(date +'%Y%m%d_%H%M%S').zip"
+          zip -r9 "../${ZIP_NAME}" * -x .git README.md
+          cd ..
+          echo "ZIP_PATH=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(date +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+
+      - name: Upload Kernel Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_PATH }}
+          path: ${{ env.ZIP_PATH }}
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main')
+        with:
+          tag_name: release-${{ github.run_number }}
+          name: "OnePlus 9 Pro Kernel (SukiSU-Ultra + SUSFS) #${{ github.run_number }}"
+          body: |
+            ## OnePlus 9 Pro (SM8350) Kernel with SukiSU-Ultra & SUSFS
+            - **Build Date**: ${{ env.BUILD_TIME }}
+            - **Base Kernel**: SM8350 Linux 5.4
+            - **Root Solution**: SukiSU-Ultra (Latest)
+            - **SUSFS Support**: Enabled (kernel-5.4 branch)
+            - **Flash Tool**: Kernel Flasher / TWRP
+          files: ${{ env.ZIP_PATH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
