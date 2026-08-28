@@ -64,9 +64,9 @@ cat << 'UACC_EOF' >> kernel/include/linux/uaccess.h
 #endif
 UACC_EOF
 
-# 9. Fix Qualcomm legacy stack_trace in cnss_prealloc.c
+# 9. Fix Qualcomm wireless cnss_prealloc.c SLUB_DEBUG on 5.4
 if [ -f kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c ]; then
-    sed -i '/#include <linux\/stacktrace.h>/a struct stack_trace { unsigned int nr_entries, max_entries; unsigned long *entries; int skip; }; static inline void save_stack_trace(struct stack_trace *trace) { if (trace && trace->entries) { trace->nr_entries = stack_trace_save(trace->entries, trace->max_entries, trace->skip); } }' kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c || true
+    sed -i '1i #undef CONFIG_SLUB_DEBUG' kernel/drivers/net/wireless/cnss_prealloc/cnss_prealloc.c || true
 fi
 
 # 10. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
