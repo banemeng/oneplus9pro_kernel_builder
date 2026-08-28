@@ -23,6 +23,14 @@ jobs:
             libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool \
             squashfs-tools xsltproc zip zlib1g-dev python3 libtinfo5 tar libyaml-dev
 
+      - name: Setup ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-kernel-ccache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-kernel-ccache-
+
       - name: Setup Toolchain (AOSP Clang r416183b & GCC)
         run: |
           echo "=== Downloading AOSP Clang r416183b ==="
@@ -78,8 +86,8 @@ jobs:
           export CLANG_TRIPLE=aarch64-linux-gnu-
 
           cd kernel
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 phone_extracted_defconfig
-          make O=out ARCH=arm64 CC=clang LLVM=1 LLVM_IAS=1 -j$(nproc --all)
+          make O=out ARCH=arm64 CC="ccache clang" LLVM=1 LLVM_IAS=1 phone_extracted_defconfig
+          make O=out ARCH=arm64 CC="ccache clang" LLVM=1 LLVM_IAS=1 -j$(nproc --all)
 
       - name: Package with AnyKernel3
         run: |

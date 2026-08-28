@@ -73,6 +73,7 @@ if [ -d kernel/drivers/kernelsu ]; then
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/copy_from_user_nofault/probe_user_read/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/TWA_RESUME/true/g' {} + 2>/dev/null || true
     find kernel/drivers/kernelsu/ -type f -exec sed -i 's/TWA_NONE/false/g' {} + 2>/dev/null || true
+    find kernel/drivers/kernelsu/ -type f -exec sed -i 's/atomic_set(&current->seccomp.filter_count, 0);/\/* filter_count 5.9+ *\/ /g' {} + 2>/dev/null || true
 
     # Fix seccomp_cache.c for Linux 5.4
     if [ -f kernel/drivers/kernelsu/infra/seccomp_cache.c ]; then
