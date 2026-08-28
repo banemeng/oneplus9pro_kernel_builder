@@ -317,6 +317,7 @@ OBS_EOF
 #include "xfrm.h"
 
 #define ALL NULL
+#define KSU_SEPOLICY_MAX_BATCH_SIZE (8U * 1024U * 1024U)
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0))
 extern int avc_ss_reset(u32 seqno);
