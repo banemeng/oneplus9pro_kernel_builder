@@ -75,13 +75,10 @@ sed -i '/ksu\//d' kernel/drivers/staging/Makefile 2>/dev/null || true
 # 11. Fix task_mmu.c swapped split_huge_pmd arguments
 sed -i 's/split_huge_pmd(vma, addr, pmd);/split_huge_pmd(vma, pmd, addr);/g' kernel/fs/proc/task_mmu.c 2>/dev/null || true
 
-# 12. Fix ftrace_trace_userstack stub if missing
-cat << 'FTRACE_EOF' >> kernel/include/linux/ftrace.h
-
-#ifndef ftrace_trace_userstack
-static inline void ftrace_trace_userstack(struct trace_array *tr, struct ring_buffer *buffer, unsigned int flags, int pc) {}
-#endif
-FTRACE_EOF
+# 12. Fix ftrace_trace_userstack in kernel/trace/trace.c when CONFIG_STACKTRACE is not set
+if [ -f kernel/kernel/trace/trace.c ]; then
+    sed -i '/#endif \/\* CONFIG_STACKTRACE \*\//i #ifndef CONFIG_STACKTRACE\nstatic void ftrace_trace_userstack(struct trace_array *tr, struct ring_buffer *buffer, unsigned long flags, int pc) {}\n#endif' kernel/kernel/trace/trace.c 2>/dev/null || true
+fi
 
 # 13. Create SukiSU-Ultra & SUSFS 5.4 Complete Bridge
 cat << 'SUSFS_BRIDGE_EOF' > kernel/drivers/kernelsu/selinux/susfs_ksu_bridge.c
