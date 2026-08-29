@@ -80,89 +80,14 @@ if [ -f kernel/kernel/trace/trace.c ]; then
     sed -i '/#endif \/\* CONFIG_STACKTRACE \*\//i #ifndef CONFIG_STACKTRACE\nstatic void ftrace_trace_userstack(struct trace_array *tr, struct ring_buffer *buffer, unsigned long flags, int pc) {}\n#endif' kernel/kernel/trace/trace.c 2>/dev/null || true
 fi
 
-# 13. Create SukiSU-Ultra & SUSFS 5.4 Complete Bridge
-cat << 'SUSFS_BRIDGE_EOF' > kernel/drivers/kernelsu/selinux/susfs_ksu_bridge.c
-// SPDX-License-Identifier: GPL-2.0
-#include <linux/types.h>
-#include <linux/fs.h>
-#include <linux/sched.h>
-#include <linux/security.h>
-#include <linux/string.h>
+# 13. Copy SukiSU-Ultra & SUSFS 5.4 Complete Bridge
+if [ -f scripts/susfs_ksu_bridge.c ] && [ -d kernel/drivers/kernelsu/selinux ]; then
+    cp scripts/susfs_ksu_bridge.c kernel/drivers/kernelsu/selinux/susfs_ksu_bridge.c
+fi
 
-#include "security.h"
-#include "klog.h"
-#include "selinux.h"
-
-static u32 susfs_zygote_sid = 0;
-static u32 susfs_ksu_sid = 0;
-static u32 susfs_init_sid = 0;
-
-static inline u32 get_current_sid(void) {
-    const struct task_security_struct *tsec = current_security();
-    if (!tsec) return 0;
-    return tsec->sid;
-}
-
-static inline void set_susfs_sid(const char *secctx_name, u32 *out_sid) {
-    u32 sid = 0;
-    if (!*out_sid) {
-        if (!security_secctx_to_secid(secctx_name, strlen(secctx_name), &sid)) {
-            *out_sid = sid;
-        }
-    }
-}
-
-u32 susfs_get_sid_from_name(const char *secctx_name) {
-    u32 sid = 0;
-    if (!security_secctx_to_secid(secctx_name, strlen(secctx_name), &sid)) {
-        return sid;
-    }
-    return 0;
-}
-
-u32 susfs_get_current_sid(void) {
-    return get_current_sid();
-}
-
-void susfs_set_zygote_sid(void) {
-    set_susfs_sid("u:r:zygote:s0", &susfs_zygote_sid);
-}
-
-bool susfs_is_current_zygote_domain(void) {
-    return unlikely(get_current_sid() == susfs_zygote_sid && susfs_zygote_sid != 0);
-}
-
-void susfs_set_ksu_sid(void) {
-    set_susfs_sid("u:r:su:s0", &susfs_ksu_sid);
-}
-
-bool susfs_is_current_ksu_domain(void) {
-    return unlikely(get_current_sid() == susfs_ksu_sid && susfs_ksu_sid != 0);
-}
-
-void susfs_set_init_sid(void) {
-    set_susfs_sid("u:r:init:s0", &susfs_init_sid);
-}
-
-bool susfs_is_current_init_domain(void) {
-    return unlikely(get_current_sid() == susfs_init_sid && susfs_init_sid != 0);
-}
-
-/* Manual Hooks required by kernel 5.4 SUSFS patch */
-int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
-int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
-int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *flags) { return 0; }
-int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) { return 0; }
-int ksu_handle_sys_read(unsigned int fd, char __user **buf, size_t *count) { return 0; }
-int ksu_vfs_read_hook(struct file *file, char __user **buf, size_t *count, loff_t **pos) { return 0; }
-int ksu_execveat_hook(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
-SUSFS_BRIDGE_EOF
-
-# Add susfs_ksu_bridge.o to drivers/kernelsu/selinux/Makefile or drivers/kernelsu/Makefile
-if [ -f kernel/drivers/kernelsu/selinux/Makefile ]; then
-    grep -q "susfs_ksu_bridge.o" kernel/drivers/kernelsu/selinux/Makefile || echo "obj-y += susfs_ksu_bridge.o" >> kernel/drivers/kernelsu/selinux/Makefile
-elif [ -f kernel/drivers/kernelsu/Makefile ]; then
-    grep -q "susfs_ksu_bridge.o" kernel/drivers/kernelsu/Makefile || echo "kernelsu-objs += selinux/susfs_ksu_bridge.o" >> kernel/drivers/kernelsu/Makefile
+if [ -f kernel/drivers/kernelsu/Kbuild ]; then
+    grep -q "susfs_ksu_bridge.o" kernel/drivers/kernelsu/Kbuild || echo "kernelsu-objs += selinux/susfs_ksu_bridge.o" >> kernel/drivers/kernelsu/Kbuild
+    sed -i 's|-I\$(objtree)/security/selinux|-I\$(objtree)/security/selinux -I\$(objtree)/security/selinux/include|g' kernel/drivers/kernelsu/Kbuild || true
 fi
 
 # 14. Fix KernelSU SukiSU-Ultra internal 5.4 compatibility
