@@ -14,6 +14,7 @@
 #include "ksu.h"
 
 struct input_handle;
+struct path;
 
 static u32 susfs_zygote_sid = 0;
 static u32 susfs_ksu_sid = 0;
@@ -85,3 +86,12 @@ void susfs_try_umount_all(void) {}
 void ksu_try_umount(const char *mnt, bool check_mnt) {}
 int ksu_handle_devpts(struct inode *inode) { return 0; }
 bool ksu_input_hook(struct input_handle *handle, unsigned int type, unsigned int code, int value) { return true; }
+
+/* Linux 5.4 compatibility bridges for SukiSU-Ultra */
+int path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page) {
+    return 0;
+}
+
+void seccomp_filter_release(struct task_struct *tsk) {}
+
+void ftrace_trace_userstack(void *tr, void *buffer, unsigned int flags, int pc) {}
