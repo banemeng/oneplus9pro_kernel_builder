@@ -6,6 +6,11 @@ on:
     branches:
       - main
 
+permissions:
+  contents: write
+  packages: write
+  actions: read
+
 env:
   CCACHE_DIR: /home/runner/.ccache
   CCACHE_MAXSIZE: 10G
