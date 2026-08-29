@@ -16,6 +16,7 @@ env:
   KBUILD_BUILD_TIMESTAMP: "Sat Jan  1 00:00:00 UTC 2022"
   KBUILD_BUILD_USER: "android-build"
   KBUILD_BUILD_HOST: "buildhost"
+  KBUILD_MODPOST_WARN: "1"
 
 jobs:
   build:
@@ -108,13 +109,14 @@ jobs:
           export CROSS_COMPILE_ARM32=arm-linux-androideabi-
           export CLANG_TRIPLE=aarch64-linux-gnu-
           export CCACHE_BASEDIR=$(pwd)/kernel
+          export KBUILD_MODPOST_WARN=1
 
           echo "=== CCache Status Before Build ==="
           ccache -s -z
 
           cd kernel
           make O=out ARCH=arm64 CC="ccache clang" LLVM=1 LLVM_IAS=1 phone_extracted_defconfig
-          make O=out ARCH=arm64 CC="ccache clang" LLVM=1 LLVM_IAS=1 -j$(nproc --all)
+          make O=out ARCH=arm64 CC="ccache clang" LLVM=1 LLVM_IAS=1 KBUILD_MODPOST_WARN=1 -j$(nproc --all)
 
           echo "=== CCache Status After Build ==="
           ccache -s
