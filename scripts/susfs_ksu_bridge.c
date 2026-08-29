@@ -82,7 +82,6 @@ int ksu_vfs_read_hook(struct file *file, char __user **buf, size_t *count, loff_
 int ksu_execveat_hook(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
 
 void susfs_try_umount_all(void) {}
-void susfs_try_umount(uid_t uid) {}
 void ksu_try_umount(const char *mnt, bool check_mnt) {}
 int ksu_handle_devpts(struct inode *inode) { return 0; }
 bool ksu_input_hook(struct input_handle *handle, unsigned int type, unsigned int code, int value) { return true; }
