@@ -11,7 +11,11 @@ env:
   CCACHE_MAXSIZE: 10G
   CCACHE_COMPRESS: 1
   CCACHE_COMPRESSLEVEL: 6
-  CCACHE_SLOPPINESS: time_macros,include_file_mtime,file_macro
+  CCACHE_SLOPPINESS: time_macros,include_file_mtime,file_macro,file_stat_matches,clang_index_header
+  CCACHE_NOHASHDIR: "1"
+  KBUILD_BUILD_TIMESTAMP: "Sat Jan  1 00:00:00 UTC 2022"
+  KBUILD_BUILD_USER: "android-build"
+  KBUILD_BUILD_HOST: "buildhost"
 
 jobs:
   build:
@@ -103,6 +107,7 @@ jobs:
           export CROSS_COMPILE=aarch64-linux-android-
           export CROSS_COMPILE_ARM32=arm-linux-androideabi-
           export CLANG_TRIPLE=aarch64-linux-gnu-
+          export CCACHE_BASEDIR=$(pwd)/kernel
 
           echo "=== CCache Status Before Build ==="
           ccache -s -z
