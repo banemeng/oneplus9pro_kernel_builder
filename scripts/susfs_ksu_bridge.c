@@ -73,7 +73,6 @@ bool susfs_is_current_init_domain(void) {
 
 /* Manual Hooks required by kernel 5.4 SUSFS patch */
 int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
-int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags) { return 0; }
 int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *flags) { return 0; }
 int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags) { return 0; }
 int ksu_handle_sys_read(unsigned int fd, char __user **buf, size_t *count) { return 0; }
